@@ -258,7 +258,7 @@ class DispecerManager:
 def clear_form_state():
     keys_to_clear = [
         "vzdialenost_km_val", "cena_cestovne_val", "last_miesto_val", 
-        "h_akcia", "m_akcia", "h_odchod", "m_odchod",
+        "cas_akcie_input_val", "cas_odchodu_input_val",
         "manual_odberatel_nazov", "manual_odberatel_ico"
     ]
     for k in list(st.session_state.keys()):
@@ -302,7 +302,6 @@ current_theme = THEMES[st.session_state.theme_choice]
 # --- VYLEPŠENÉ CSS PRE MOBILNÉ DOTYKOVÉ OVLÁDANIE V TERÉNE ---
 st.markdown(f"""
     <style>
-    /* Zväčšenie dotykových plôch a optimalizácia pre prsty */
     .stButton>button {{
         width: 100%;
         min-height: 48px;
@@ -345,7 +344,7 @@ st.markdown(f"""
 st.markdown(f"""
     <div style="background-color: {current_theme['header_bg']}; color: white; padding: 22px 24px; border-radius: 12px; margin-bottom: 20px;">
         <h1 style="margin: 0; color: white; font-size: 24px;">💼 Asistent Štefana Šarközyho</h1>
-        <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 13px;">🟢 Duálny terénny systém – Optimalizované pre mobilné dotyky (SR & ČR)</p>
+        <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 13px;">🟢 Duálny terénny systém – Optimalizované pre klávesnicu a prsty (SR & ČR)</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -559,7 +558,8 @@ elif st.session_state.menu_tab == "Nová / Úprava výjazdu":
                 curr_s = all_srv_list[0]
             sel_s = st.selectbox(f"Služba {idx+1}", all_srv_list, index=all_srv_list.index(curr_s), key=f"serv_{idx}")
         with cb2:
-            sel_h = st.number_input(f"Počet hodín {idx+1}", min_value=0.5, max_value=50.0, value=float(block["hodiny"]), step=0.5, key=f"hod_{idx}")
+            # Zmenené na priame zadanie počtu hodín cez klávesnicu (odstránené minútové klikanie)
+            sel_h = st.number_input(f"Počet hodín {idx+1}", min_value=0.5, max_value=50.0, value=float(block["hodiny"]), step=0.5, key=f"hod_{idx}", format="%.1f")
         
         default_rate = active_rates.get(sel_s, 55.0)
         with cb3:
@@ -587,7 +587,7 @@ elif st.session_state.menu_tab == "Nová / Úprava výjazdu":
     st.markdown("---")
     st.markdown("### 📅 Dátum a čas konania akcie")
     
-    # OPRAVENÉ: Použitie natívneho mobilného kalendára namiesto 3 roletiek
+    # Natívny kalendár
     try:
         def_date = datetime.strptime(str(item['datum_akcie']), "%Y-%m-%d").date() if item and pd.notna(item.get('datum_akcie')) else datetime.now().date()
     except Exception:
@@ -595,16 +595,14 @@ elif st.session_state.menu_tab == "Nová / Úprava výjazdu":
 
     datum_akcie = st.date_input("Dátum konania akcie", value=def_date, key="datum_akcie_input")
 
+    # JEDNODUCHÉ TEXTOVÉ POLIA NA ČAS (BEZ MINÚTOVÝCH ROLETIEK) - priame zadanie cez klávesnicu
     col_t1, col_t2 = st.columns(2)
     with col_t1:
-        h_akcia = st.number_input("Hodina akcie", min_value=0, max_value=23, value=9, step=1, key="h_akcia")
-        m_akcia = st.number_input("Minúta akcie", min_value=0, max_value=59, value=0, step=15, key="m_akcia")
+        def_cas_akcie = item.get('cas', '09:00') if item and pd.notna(item.get('cas')) else '09:00'
+        cas_akcie_str = st.text_input("Čas akcie (napr. 09:00)", value=def_cas_akcie, key="cas_akcie_input_val")
     with col_t2:
-        h_odchod = st.number_input("Hodina odchodu", min_value=0, max_value=23, value=8, step=1, key="h_odchod")
-        m_odchod = st.number_input("Minúta odchodu", min_value=0, max_value=59, value=0, step=15, key="m_odchod")
-
-    cas_akcie_str = f"{h_akcia:02d}:{m_akcia:02d}"
-    cas_odchodu_str = f"{h_odchod:02d}:{m_odchod:02d}"
+        def_cas_odchodu = item.get('odchod', '08:00') if item and pd.notna(item.get('odchod')) else '08:00'
+        cas_odchodu_str = st.text_input("Čas odchodu (napr. 08:00)", value=def_cas_odchodu, key="cas_odchodu_input_val")
 
     st.markdown("---")
     st.markdown(f"### 🚗 KALKULÁTOR CESTOVNÉHO ({sym})")
