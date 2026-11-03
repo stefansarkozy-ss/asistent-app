@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 @echo off
 chcp 65001 > nul
 echo ========================================
@@ -25,3 +26,14 @@ pause
 
 
 
+=======
+@echo off
+cd /d "%~dp0"
+streamlit run asistent.py --server.address 0.0.0.0
+pause
+
+
+
+
+
+>>>>>>> 45be3a5cc69bcf74f51d884a4d4b686c95c1beec
