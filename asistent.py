@@ -299,9 +299,18 @@ THEMES = {
 
 current_theme = THEMES[st.session_state.theme_choice]
 
-# --- VYLEPŠENÉ CSS PRE MOBILNÉ DOTYKOVÉ OVLÁDANIE V TERÉNE ---
+# --- CSS NA ÚPLNÉ SKRYTIE +/- TLAČIDIEL PRI ČÍSLACH A OPTIMALIZÁCIU PRE PRSTY ---
 st.markdown(f"""
     <style>
+    /* Skrytie rolovačov a šípok/tlačidiel +/- pri number_input */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button {{ 
+        -webkit-appearance: none; 
+        margin: 0; 
+    }}
+    input[type=number] {{
+        -moz-appearance: textfield;
+    }}
     .stButton>button {{
         width: 100%;
         min-height: 48px;
@@ -344,7 +353,7 @@ st.markdown(f"""
 st.markdown(f"""
     <div style="background-color: {current_theme['header_bg']}; color: white; padding: 22px 24px; border-radius: 12px; margin-bottom: 20px;">
         <h1 style="margin: 0; color: white; font-size: 24px;">💼 Asistent Štefana Šarközyho</h1>
-        <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 13px;">🟢 Duálny terénny systém – Optimalizované pre klávesnicu a prsty (SR & ČR)</p>
+        <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 13px;">🟢 Duálny terénny systém – Priame zadávanie bez rolovania (SR & ČR)</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -551,24 +560,27 @@ elif st.session_state.menu_tab == "Nová / Úprava výjazdu":
     polozky_pre_fakturu = []
 
     for idx, block in enumerate(st.session_state.service_blocks):
-        cb1, cb2, cb3, cb4 = st.columns([3, 1.5, 1.5, 0.8])
+        cb1, cb2, cb3, cb4, cb5 = st.columns([2.8, 1.2, 1.2, 0.9, 0.9])
         with cb1:
             curr_s = block["sluzba"]
             if curr_s not in all_srv_list:
                 curr_s = all_srv_list[0]
             sel_s = st.selectbox(f"Služba {idx+1}", all_srv_list, index=all_srv_list.index(curr_s), key=f"serv_{idx}")
         with cb2:
-            # Zmenené na priame zadanie počtu hodín cez klávesnicu (odstránené minútové klikanie)
-            sel_h = st.number_input(f"Počet hodín {idx+1}", min_value=0.5, max_value=50.0, value=float(block["hodiny"]), step=0.5, key=f"hod_{idx}", format="%.1f")
+            # Priame zadanie hodnôt bez šípok +/-
+            sel_h = st.number_input(f"Hodiny {idx+1}", min_value=0.5, max_value=50.0, value=float(block["hodiny"]), step=0.5, key=f"hod_{idx}", format="%.1f")
         
         default_rate = active_rates.get(sel_s, 55.0)
         with cb3:
-            sel_rate = st.number_input(f"Cena za 1h ({sym}) {idx+1}", min_value=0.0, max_value=10000.0, value=float(default_rate), step=5.0, key=f"rate_{idx}")
+            sel_rate = st.number_input(f"Cena/1h {idx+1} ({sym})", min_value=0.0, max_value=10000.0, value=float(default_rate), step=5.0, key=f"rate_{idx}")
 
         calc_price = round(sel_h * sel_rate, 2)
         with cb4:
             st.write("")
             st.write(f"**{calc_price} {sym}**")
+        with cb5:
+            st.write("")
+            conf_clicked = st.button("✅ OK", key=f"conf_{idx}")
             if len(st.session_state.service_blocks) > 1 and st.button("🗑️", key=f"del_{idx}"):
                 st.session_state.service_blocks.pop(idx)
                 st.rerun()
@@ -595,7 +607,7 @@ elif st.session_state.menu_tab == "Nová / Úprava výjazdu":
 
     datum_akcie = st.date_input("Dátum konania akcie", value=def_date, key="datum_akcie_input")
 
-    # JEDNODUCHÉ TEXTOVÉ POLIA NA ČAS (BEZ MINÚTOVÝCH ROLETIEK) - priame zadanie cez klávesnicu
+    # Priame textové zadanie času (bez rolovaní a minútových šípok)
     col_t1, col_t2 = st.columns(2)
     with col_t1:
         def_cas_akcie = item.get('cas', '09:00') if item and pd.notna(item.get('cas')) else '09:00'
@@ -666,8 +678,8 @@ elif st.session_state.menu_tab == "Nová / Úprava výjazdu":
                 WHERE id = ?
             ''', (
                 combined_services_str, total_hodiny, miesto, krajina, str(datum_akcie),
-                cas_akcie_str, cestovny_cas, cas_odchodu_str, total_sluzba_cena, cena_cestovne,
-                0.0, 0.0, vzdialenost_km, poznamka, mena, celkova_suma, json.dumps(updated_blocks, ensure_ascii=False), item['id']
+                cas_akcie_str, cestovny_cas, cas_odchodu_str, str(total_sluzba_cena), float(cena_cestovne),
+                0.0, 0.0, int(vzdialenost_km), poznamka, mena, float(celkova_suma), json.dumps(updated_blocks, ensure_ascii=False), item['id']
             ))
             dopyt_id_val = item['id']
         else:
@@ -679,8 +691,8 @@ elif st.session_state.menu_tab == "Nová / Úprava výjazdu":
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Kalendár', ?, ?, ?, ?)
             ''', (
                 datetime.now().strftime("%Y-%m-%d %H:%M"), combined_services_str, total_hodiny, miesto, krajina, str(datum_akcie), cas_akcie_str,
-                cestovny_cas, cas_odchodu_str, total_sluzba_cena, cena_cestovne, 0.0, 0.0,
-                vzdialenost_km, poznamka, mena, celkova_suma, json.dumps(updated_blocks, ensure_ascii=False)
+                cestovny_cas, cas_odchodu_str, str(total_sluzba_cena), float(cena_cestovne), 0.0, 0.0,
+                int(vzdialenost_km), poznamka, mena, float(celkova_suma), json.dumps(updated_blocks, ensure_ascii=False)
             ))
             dopyt_id_val = cursor.lastrowid
         conn.commit()
