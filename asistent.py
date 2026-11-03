@@ -1,5 +1,5 @@
 # ==========================================
-# ASISTENT ŠTEFANA ŠARKÖZYHA - DUÁLNY TERÉNNY SYSTÉM (MANUAL-OVERRIDE VERZIA)
+# ASISTENT ŠTEFANA ŠARKÖZYHA - DUÁLNY TERÉNNY SYSTÉM (MOBILE-TOUCH OPTIMIZED)
 # ==========================================
 
 import streamlit as st
@@ -13,7 +13,7 @@ import os
 
 # --- NASTAVENIE STRÁNCY ---
 st.set_page_config(
-    page_title="Asistent Štefana Šarközyho - Duálny Terénny Systém",
+    page_title="Asistent Štefana Šarközyho - Terénny Systém",
     layout="wide",
     page_icon="💼"
 )
@@ -299,17 +299,53 @@ THEMES = {
 
 current_theme = THEMES[st.session_state.theme_choice]
 
+# --- VYLEPŠENÉ CSS PRE MOBILNÉ DOTYKOVÉ OVLÁDANIE V TERÉNE ---
 st.markdown(f"""
     <style>
-    .card {{ background-color: {current_theme['bg_color']}; padding: 16px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-left: 5px solid {current_theme['card_border']}; }}
-    .idoklad-partner-card {{ background-color: {current_theme['badge_bg']}; padding: 16px; border-radius: 8px; border: 1px solid #cbd5e1; border-left: 5px solid {current_theme['accent']}; margin-top: 10px; margin-bottom: 15px; }}
+    /* Zväčšenie dotykových plôch a optimalizácia pre prsty */
+    .stButton>button {{
+        width: 100%;
+        min-height: 48px;
+        font-size: 16px !important;
+        font-weight: 600;
+        border-radius: 8px;
+        margin-top: 6px;
+        margin-bottom: 6px;
+    }}
+    .stSelectbox div[data-baseweb="select"], .stTextInput input, .stNumberInput input {{
+        min-height: 46px !important;
+        font-size: 16px !important;
+    }}
+    label {{
+        font-size: 15px !important;
+        font-weight: 500 !important;
+        color: #1e293b !important;
+    }}
+    .card {{
+        background-color: {current_theme['bg_color']};
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 15px;
+        border: 2px solid #cbd5e1;
+        border-left: 6px solid {current_theme['card_border']};
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }}
+    .idoklad-partner-card {{
+        background-color: {current_theme['badge_bg']};
+        padding: 18px;
+        border-radius: 10px;
+        border: 2px solid #cbd5e1;
+        border-left: 6px solid {current_theme['accent']};
+        margin-top: 12px;
+        margin-bottom: 18px;
+    }}
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown(f"""
     <div style="background-color: {current_theme['header_bg']}; color: white; padding: 22px 24px; border-radius: 12px; margin-bottom: 20px;">
         <h1 style="margin: 0; color: white; font-size: 24px;">💼 Asistent Štefana Šarközyho</h1>
-        <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 13px;">🟢 Duálny terénny systém – Manuálna nadstavba (SR & ČR)</p>
+        <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 13px;">🟢 Duálny terénny systém – Optimalizované pre mobilné dotyky (SR & ČR)</p>
     </div>
 """, unsafe_allow_html=True)
 
@@ -550,23 +586,14 @@ elif st.session_state.menu_tab == "Nová / Úprava výjazdu":
 
     st.markdown("---")
     st.markdown("### 📅 Dátum a čas konania akcie")
+    
+    # OPRAVENÉ: Použitie natívneho mobilného kalendára namiesto 3 roletiek
     try:
         def_date = datetime.strptime(str(item['datum_akcie']), "%Y-%m-%d").date() if item and pd.notna(item.get('datum_akcie')) else datetime.now().date()
     except Exception:
         def_date = datetime.now().date()
 
-    col_d1, col_d2, col_d3 = st.columns(3)
-    with col_d1:
-        den = st.selectbox("Deň", list(range(1, 32)), index=def_date.day - 1, key="den_key")
-    with col_d2:
-        mesiac = st.selectbox("Mesiac", list(range(1, 13)), index=def_date.month - 1, key="mesiac_key")
-    with col_d3:
-        rok = st.selectbox("Rok", [2026, 2027], index=0 if def_date.year == 2026 else 1, key="rok_key")
-
-    try:
-        datum_akcie = datetime(rok, mesiac, den).date()
-    except Exception:
-        datum_akcie = def_date
+    datum_akcie = st.date_input("Dátum konania akcie", value=def_date, key="datum_akcie_input")
 
     col_t1, col_t2 = st.columns(2)
     with col_t1:
