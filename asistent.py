@@ -540,7 +540,7 @@ elif st.session_state.menu_tab == "Nová / Úprava výjazdu":
         total_sluzba_cena += calc_price
         total_hodiny += sel_h
         updated_blocks.append({"sluzba": sel_s, "hodiny": sel_h, "cena_za_1h": sel_rate, "spolu": calc_price})
-        polozky_pre_fakturu.append(f"- {sel_s} : počet hodín: {sel_h} hod.   cena za 1h: {sel_rate} {mena} (Spolu: {calc_price} {mena})")
+        polozky_pre_fakturu.append(f"- {sel_s} : počet hodín: {sel_h} hod.    cena za 1h: {sel_rate} {mena} (Spolu: {calc_price} {mena})")
         st.divider()
 
     st.session_state.service_blocks = updated_blocks
@@ -704,7 +704,7 @@ elif selected_tab == "Správa partnerov":
             st.warning("Súbor pre SR chýba.")
 
     with col_csv2:
-        st.markdown("### 🇨🇿 Česká republika (ČR)")
+        st.markdown("### 🇨🇷 Česká republika (ČR)")
         if os.path.exists(ALT_CSV_CZ):
             st.success(f"Súbor nájdený: `{ALT_CSV_CZ}`")
             if st.button("🔄 Znova načítať ČR kontakty", type="primary", key="btn_reload_cz"):
@@ -715,107 +715,60 @@ elif selected_tab == "Správa partnerov":
             st.warning("Súbor pre ČR chýba.")
 
     st.markdown("---")
-    st.subheader("📚 Aktuálny zoznam partnerov v databáze aplikácie")
+    st.subheader("🏢 Zoznam všetkých registrovaných partnerov v databáze")
     conn = get_connection()
-    df_db_part = pd.read_sql("SELECT nazov, ico, adresa, krajina, zdroj FROM partneri", conn)
+    df_part = pd.read_sql("SELECT * FROM partneri", conn)
     conn.close()
-    if df_db_part.empty:
-        st.info("Databáza partnerov je zatiaľ prázdna.")
+    if df_part.empty:
+        st.info("Žiadni partneri v databáze.")
     else:
-        st.write(f"Celkový počet partnerov v databáze: {len(df_db_part)}")
-        st.dataframe(df_db_part, use_container_width=True)
+        st.dataframe(df_part, use_container_width=True)
 
 # ==========================================
 # 4. ZÁLOŽKA: VNÚTORNÁ FAKTURÁCIA
 # ==========================================
 elif selected_tab == "Vnútorná fakturácia":
-    st.header("🗄️ Vnútorná databáza podkladov pre fakturáciu")
+    st.header("🧾 Vnútorná fakturácia & Export podkladov")
     conn = get_connection()
-    df_cakajuce = pd.read_sql("SELECT * FROM vnutorne_faktury WHERE stav_podkladu = 'Čaká na spracovanie'", conn)
+    df_fav = pd.read_sql("SELECT * FROM vnutorne_faktury", conn)
     conn.close()
 
-    st.subheader("⏳ Čaká na spracovanie (Aktívne formuláre)")
-    if df_cakajuce.empty:
-        st.info("Žiadne záznamy nečakajú na spracovanie.")
+    if df_fav.empty:
+        st.info("Zatiaľ žiadne vygenerované fakturačné podklady.")
     else:
-        for idx, row in df_cakajuce.iterrows():
-            rec_id = row['id']
-            payload = json.loads(row['json_payload'])
-            mena = payload.get('Mena', 'EUR')
-            sym = "Kč" if mena == "CZK" else "€"
-            
-            polozky_text = ""
-            for p in payload.get('SluzbyPolozky', []):
-                polozky_text += f"- {p.get('sluzba')} : počet hodín: {p.get('hodiny')} hod.   cena za 1h: {p.get('cena_za_1h')} {mena} (Spolu: {p.get('spolu')} {mena})\n"
-
-            with st.expander(f"Fakturačný podklad #{rec_id} – Odberateľ: {payload.get('OdberatelNazov')} | Celkom: {payload.get('CelkovaSuma')} {sym} [{row['entita']}]"):
-                st.code(f"""ÚDAJE NA VYPLNENIE FAKTÚRY:
-----------------------------------------
-Dodávateľ: {row['entita']}
-Odberateľ / Miesto konania: {payload.get('OdberatelNazov')} (IČO: {payload.get('OdberatelICO')}) - {payload.get('OdberatelMiesto')}
-Dátum a čas konania: {payload.get('DatumAkcie')} o {payload.get('CasAkcie')}
-
-SLUŽBY:
-{polozky_text}
-Suma za služby spolu:     {payload.get('SumaZaSluzby')} {mena}
-Cestovne spolu:     {payload.get('CenaCestovne')} {mena}
-
-Celková suma k úhrade: {payload.get('CelkovaSuma')} {mena}
-----------------------------------------
-Poznámka: {payload.get('Poznamka')}
-""", language="text")
-
-                if st.button(f"✅ Hotovo / Presunúť do spracovaných #{rec_id}", key=f"btn_hotovo_{rec_id}_{idx}"):
-                    conn = get_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE vnutorne_faktury SET stav_podkladu = 'Spracované' WHERE id = ?", (rec_id,))
-                    conn.commit()
-                    conn.close()
-                    st.success(f"Podklad #{rec_id} bol úspešne presunutý do archívu!")
-                    st.rerun()
-
-    st.markdown("---")
-    st.subheader("📂 Spracované (Archív vystavených faktúr)")
-    conn = get_connection()
-    df_spracovane = pd.read_sql("SELECT * FROM vnutorne_faktury WHERE stav_podkladu = 'Spracované'", conn)
-    conn.close()
-
-    if df_spracovane.empty:
-        st.info("Zatiaľ žiadne spracované záznamy v archíve.")
-    else:
-        for idx, row in df_spracovane.iterrows():
-            rec_id = row['id']
-            payload = json.loads(row['json_payload'])
-            mena = payload.get('Mena', 'EUR')
-            sym = "Kč" if mena == "CZK" else "€"
-            
+        for idx, row in df_fav.iterrows():
             st.markdown(f"""
-                <div style='background-color: {current_theme['badge_bg']}; padding: 12px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 8px;'>
-                    <b>Spracované #{rec_id}</b> – Odberateľ: <b>{payload.get('OdberatelNazov')}</b> | Suma: <b>{payload.get('CelkovaSuma')} {sym}</b> | Dodávateľ: {row['entita']}
+                <div class='card'>
+                    <h4>Fakturačný podklad pre dopyt #{row['dopyt_id']} ({row['entita']})</h4>
+                    <p><b>Odberateľ:</b> {row['odberatel']} | <b>Suma:</b> {row['suma_celkom']} {row['mena']} | <b>Stav:</b> {row['stav_podkladu']}</p>
                 </div>
             """, unsafe_allow_html=True)
+            with st.expander(f"Zobraziť detail a JSON payload #{row['dopyt_id']}"):
+                st.text(row['popis_sluzieb'])
+                st.code(row['json_payload'], language="json")
 
 # ==========================================
 # 5. ZÁLOŽKA: SIMULÁTOR AI
 # ==========================================
 elif selected_tab == "Simulátor AI":
-    st.header("🤖 Simulátor Orchestrátora (Automatický zber)")
-    zdroj = st.selectbox("Vstupný kanál", ["Gmail API", "WhatsApp / Správa", "Telefonát (Audio/Text)"])
-    surovy_text = st.text_area("Surový text dopytu od klienta", "Dobrý deň, máme záujem o individuálnu supervíziu v Prahe pre našu s.r.o. budúci štvrtok.")
-    
-    if st.button("🚀 Spustiť Orchestrátor", type="primary"):
-        vysl = VyhladavacPrieskumnik().spracuj_inbound_dopyt(zdroj, surovy_text)
-        st.success(f"Dopyt úspešne zachytený! Zaradený pod entita: {vysl['krajina']} (Miesto: {vysl['miesto']})")
-        st.rerun()
+    st.header("🤖 AI Asistent & Terénny Simulátor")
+    st.info("Tento modul slúži na rýchle spracovanie prichádzajúcich dopytov a generovanie odporúčaní pre intervencie.")
+    user_prompt = st.text_area("Zadajte text dopytu alebo poznámku z terénu:")
+    if st.button("Analyzovať dopyt pomocou AI"):
+        if user_prompt.strip():
+            anal_res = VyhladavacPrieskumnik().spracuj_inbound_dopyt("AI Simulátor", user_prompt)
+            st.success("Analýza úspešne dokončená:")
+            st.json(anal_res)
+        else:
+            st.warning("Zadajte text pre analýzu.")
 
 # ==========================================
 # 6. ZÁLOŽKA: INOVÁCIE
 # ==========================================
 elif selected_tab == "Inovácie":
-    st.header("🛡️ Aktívne bezpečnostné a inovatívne moduly")
+    st.header("🚀 Inovácie & Budúci rozvoj systému")
     st.markdown("""
-    * **Samsung Knox / WebAuthn:** Biometrické overenie totožnosti aktívne.
-    * **PWA Service Worker:** Offline režim pre terénne výjazdy v SR a ČR.
-    * **Priamy iDoklad Parser:** Automatické čítanie originálnych súborov priamo z adresára.
-    * **Manuálny Override:** Okamžité ručné prepísanie odberateľa a IČO bez čakania na automatiku.
+        * **Modulárne rozhranie:** Pripravené na terénne podmienky SR a ČR.
+        * **Dualita mien a entít:** Automatické prepínanie medzi PhDr. Štefan Šarközy (SR) a Etien Institut s.r.o. (ČR).
+        * **Rýchle ukladanie:** Priame prepojenie na Google Kalendár a vnútornú fakturáciu.
     """)
