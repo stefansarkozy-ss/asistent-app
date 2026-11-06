@@ -6,7 +6,7 @@ import io
 import json
 import pandas as pd
 import streamlit as st
-from database import get_connection
+from databaze import get_connection
 
 try:
   from docx import Document
