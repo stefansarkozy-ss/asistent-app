@@ -15,14 +15,5 @@ git push origin main
 
 echo ========================================
 echo Hotovo! Zmeny boli odoslane na GitHub.
-echo Streamlit Cloud aplikaciu automaticky aktualizuje.
 echo ========================================
 pause
-
-pause
-
-
-
-
-
-
