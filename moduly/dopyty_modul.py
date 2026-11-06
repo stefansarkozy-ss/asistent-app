@@ -3,8 +3,9 @@
 # ==========================================
 
 import pandas as pd
-import streamlit as st
-from databaze import get_connection
+port streamlit as st
+imrom databaze import get_connection
+
 
 def render():
   st.header("📥 Správa dopytov a čakajúcich úloh")
