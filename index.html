@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asistent Štefana Šarközyho</title>
+    <title>Asistent Štefana Šarközyho - Lokálna verzia</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -33,15 +33,23 @@
         a:hover {
             text-decoration: underline;
         }
+        .hint {
+            font-size: 0.9em;
+            color: #bdc3c7;
+            margin-top: 15px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🛡️ Asistent Štefana Šarközyho</h1>
-        <p>Duálny terénny systém pre klientov a výjazdy.</p>
+        <p>Duálny terénny systém pre klientov a výjazdy (Lokálny režim).</p>
         <p style="margin-top: 30px;">
-            <a href="https://asistent-sarkozy.streamlit.app" target="_blank">👉 Spustiť ostrú aplikáciu v cloude</a>
+            <a href="http://localhost:8501" target="_blank">👉 Otvoriť aplikáciu na PC</a>
         </p>
+        <div class="hint">
+            Uistite sa, že máte v termináli spustený príkaz: <br><code>streamlit run app.py</code>
+        </div>
     </div>
 </body>
 </html>
