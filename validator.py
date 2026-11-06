@@ -6,7 +6,7 @@ import datetime
 import json
 import re
 import urllib.parse
-from database import get_connection
+from databaze import get_connection
 
 SUPERVIZNE_MODALITY_MAP = {
     "reflektujúci": "Individuálna supervízia (Reflektujúci tím)",
