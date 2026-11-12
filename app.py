@@ -1,370 +1,495 @@
+# ==========================================
+# app.py - ETIENs NEUROSURGICAL ULTIMATE (2026)
+# ==========================================
+
 import streamlit as st
 import pandas as pd
-import os
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
+from databaze import get_connection, init_all_tables, vloz_dopyt
+from validator import EtienAsistentValidator
 
+# 1. KONFIGURÁCIA STRÁNKY
 st.set_page_config(
-    page_title="Asistent Štefana Šarközyho",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    page_title="ETIENs Neurosystém | Autonómny Dirigent Praxe",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
+# 2. NEURONÁLNY VIP DIZAJN (Glassmorphism & Cyber-Dark)
 st.markdown("""
     <style>
-    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-        background-color: #3b4d66 !important;
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #050811 0%, #0f172a 100%);
+        border-right: 1px solid rgba(56, 189, 248, 0.2);
     }
-    .block-container {
-        padding: 1.5rem 1rem;
-        max-width: 720px;
+    [data-testid="stSidebar"] * {
+        color: #f8fafc !important;
     }
-    /* Všetky nadpisy, popisy a štítky polí budú ČISTO BIELE */
-    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] * {
-        color: #ffffff !important;
+    .neuro-banner {
+        background: linear-gradient(135deg, #090d16 0%, #1e1b4b 50%, #0369a1 100%);
+        padding: 2rem;
+        border-radius: 16px;
+        color: #ffffff;
+        margin-bottom: 1.5rem;
+        border: 1px solid rgba(56, 189, 248, 0.4);
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
     }
-    .white-card {
-        background-color: #ffffff !important;
-        padding: 1.5rem !important;
-        border-radius: 12px !important;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.25) !important;
-        margin-bottom: 1.5rem !important;
+    .neuro-card {
+        background: rgba(30, 41, 59, 0.75);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 1.4rem;
+        border-radius: 12px;
+        margin-bottom: 1.2rem;
+        color: #f8fafc;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
     }
-    .white-card * {
-        color: #1f2937 !important;
+    .prediction-card {
+        background: #f8fafc;
+        border-left: 5px solid #0284c7;
+        padding: 1.1rem;
+        border-radius: 10px;
+        margin-bottom: 0.9rem;
+        color: #0f172a;
     }
-    /* Hlavné tlačidlá / moduly (zväčšené, jednotné, prémiový modrý vzhľad) */
-    div.stButton > button {
-        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%) !important;
-        color: #ffffff !important;
-        width: 100%;
-        min-height: 4.5rem;
-        font-size: 1.05rem;
-        font-weight: bold;
-        border-radius: 14px;
-        border: 2px solid #60a5fa;
-        box-shadow: 0 6px 18px rgba(59, 130, 246, 0.4);
-        white-space: pre-wrap !important;
-    }
-    div.stButton > button *, div.stButton > button p, div.stButton > button span {
-        color: #ffffff !important;
-        -webkit-text-fill-color: #ffffff !important;
-    }
-    div.stButton > button:hover {
-        background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%) !important;
-        border-color: #93c5fd;
-        color: #ffffff !important;
-    }
-    /* Vstupné polia a výberové menu - biely podklad, tmavý text */
-    .stTextInput input, .stTextArea textarea, .stDateInput input {
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
-        border: 1px solid #d1d5db !important;
-        font-weight: 500 !important;
-    }
-    div[data-baseweb="select"] > div {
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
-    }
-    div[data-baseweb="select"] * {
-        color: #1f2937 !important;
-    }
-    div[data-baseweb="menu"] * {
-        color: #1f2937 !important;
-        background-color: #ffffff !important;
+    .alert-card {
+        background: #fef2f2;
+        border-left: 5px solid #dc2626;
+        padding: 1.1rem;
+        border-radius: 10px;
+        margin-bottom: 0.9rem;
+        color: #7f1d1d;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Načítanie cenníkov z CSV súborov
-def nacitaj_cennik(cesta, fallback):
-    if os.path.exists(cesta):
+init_all_tables()
+
+try:
+    from moduly import dopyty_modul, vyjazd_modul, fakturacia_modul
+    MODULY_OK = True
+except ImportError as e:
+    MODULY_OK = False
+    IMPORT_ERROR_MSG = str(e)
+
+
+class EtienNeurosytemConductor:
+    """
+    Autonómny, samoučiaci, samoopravovací a samovylepšujúci neurosystém ETIENs:
+    - Riadi tok dát, lieči anomálie a optimalizuje vyťaženie.
+    - Vykonáva hĺbkovú psychohygienickú a štatistickú analýzu (hodiny, služby, výnosy, km) v cykloch.
+    """
+    def __init__(self):
+        self.validator = EtienAsistentValidator()
+
+    def self_heal_and_optimize(self) -> dict:
+        fixes_report = {"invoices_fixed": 0, "status": "OPTIMAL"}
         try:
-            df = pd.read_csv(cesta)
-            cennik = {"-- Žiadna / Nevybraté --": 0.0}
-            for _, row in df.iterrows():
-                kod = str(row.get('Kod', '')).strip()
-                nazov = str(row.get('Nazov', '')).strip()
-                cena = float(row.get('Cena', 0.0))
-                kluc = f"{kod} - {nazov}" if kod else nazov
-                cennik[kluc] = cena
-            return cennik
-        except Exception:
-            return fallback
-    return fallback
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            missing = pd.read_sql("""
+                SELECT d.* FROM dopyty d
+                LEFT JOIN vnutorne_faktury f ON d.id = f.dopyt_id
+                WHERE (d.stav LIKE '%SCHVÁLENÉ%' OR d.stav LIKE '%SCHVALENE%') AND f.id IS NULL
+            """, conn)
 
-CENNIK_SR = nacitaj_cennik('cennik_sr.csv', {"-- Žiadna / Nevybraté --": 0.0, "SI - Individuálna supervízia": 60.0, "SS - Skupinová supervízia": 65.0})
-CENNIK_CZ = nacitaj_cennik('cennik_cz.csv', {"-- Žiadna / Nevybraté --": 0.0, "SI - Individuálna supervízia": 1400.0, "SS - Skupinová supervízia": 1600.0})
+            for _, r in missing.iterrows():
+                mena = r['mena'] if 'mena' in r and r['mena'] else 'EUR'
+                entita = "ETIENs Institut s.r.o. (ČR)" if mena == 'CZK' else "PhDr. Štefan Šarközy (SR)"
+                odberatel = r['miesto'] if 'miesto' in r and r['miesto'] else "Klient"
+                suma = float(r['celkova_suma'] or 0.0)
+                hodiny_v = float(r['hodiny'] or 6.0)
+                sluzba_t = r['sluzby'] if 'sluzby' in r and r['sluzby'] else 'Supervízia'
+                
+                popis = f"• {sluzba_t} ({r.get('datum_akcie', '')}): {hodiny_v} hod."
+                payload = json.dumps({
+                    "OdberatelNazov": odberatel,
+                    "OdberatelMiesto": odberatel,
+                    "DatumAkcie": r.get('datum_akcie', datetime.now().strftime("%Y-%m-%d")),
+                    "SumaZaSluzby": suma,
+                    "Kilometre": float(r.get('km', 0) or 0.0),
+                    "Krajina": "ČR" if mena == "CZK" else "SR",
+                    "Poznamka": r.get('poznamka', '') or "Autonómne zosynchronizované Neurosystémom ETIENs."
+                }, ensure_ascii=False)
 
-zoznam_sluzieb_sr = list(CENNIK_SR.keys())
-zoznam_sluzieb_cz = list(CENNIK_CZ.keys())
+                cursor.execute("""
+                    INSERT INTO vnutorne_faktury (dopyt_id, datum_generovania, entita, odberatel, popis_sluzieb, suma_celkom, mena, stav_podkladu, json_payload)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'SCHVÁLENÉ (NEURO-SYNC)', ?)
+                """, (r['id'], datetime.now().strftime("%Y-%m-%d %H:%M"), entita, odberatel, popis, suma, mena, payload))
+                fixes_report["invoices_fixed"] += 1
 
-def nacitaj_partnerov(cesta):
-    if os.path.exists(cesta):
-        try:
-            df = pd.read_csv(cesta)
-            firmy = []
-            for _, row in df.iterrows():
-                firma = str(row.get('Firma', row.get('Nazov', ''))).strip()
-                if firma and firma != 'nan':
-                    firmy.append(firma)
-            return sorted(list(set(firmy)))
-        except Exception:
-            return []
-    return []
-
-partneri_sr = nacitaj_partnerov('partneri_sr.csv') or ["DSS Partizánske", "Spojená škola Partizánske", "CDR Partizánske", "KC Jelka", "CDR Piešťany"]
-partneri_cz = nacitaj_partnerov('partneri_cz.csv') or ["Praha - Klient ČR", "Brno - Klient ČR"]
-
-DATABAZA_MIEST = {
-    "bratislava": {"km": 0, "cas_h": 0.0},
-    "partizánske": {"km": 290, "cas_h": 3.5},
-    "dss partizánske": {"km": 290, "cas_h": 3.5},
-    "spojená škola partizánske": {"km": 290, "cas_h": 3.5},
-    "cdr partizánske": {"km": 290, "cas_h": 3.5},
-    "jelka": {"km": 90, "cas_h": 1.5},
-    "cífer": {"km": 100, "cas_h": 1.5},
-    "piešťany": {"km": 160, "cas_h": 2.0},
-    "pezinok": {"km": 50, "cas_h": 1.0},
-    "trnava": {"km": 90, "cas_h": 1.2},
-    "nitra": {"km": 180, "cas_h": 2.0},
-    "brno": {"km": 260, "cas_h": 3.0},
-    "praha": {"km": 660, "cas_h": 7.0}
-}
-
-def parse_float(val, default=0.0):
-    if not val:
-        return default
-    try:
-        return float(str(val).replace(',', '.'))
-    except ValueError:
-        return default
-
-def vypocitaj_stravne(cas_h, region):
-    if cas_h <= 0:
-        return 0.0
-    if "SR" in region:
-        if 5 <= cas_h < 12: return 8.30
-        elif 12 <= cas_h < 18: return 12.30
-        elif cas_h >= 18: return 18.40
-    else:
-        if 5 <= cas_h < 12: return 140.0
-        elif 12 <= cas_h < 18: return 210.0
-        elif cas_h >= 18: return 330.0
-    return 0.0
-
-if 'cakaren' not in st.session_state: st.session_state.cakaren = []
-if 'kalendar' not in st.session_state: st.session_state.kalendar = []
-if 'input_mode' not in st.session_state: st.session_state.input_mode = 'diktafon'
-
-st.markdown("## 🛡️ Asistent Štefana Šarközyho")
-st.caption("Terénny systém – Správa výjazdov, klientov a poznámok")
-st.markdown("---")
-
-# 🏛️ 3 Hlavné Piliere hore
-col_p1, col_p2, col_p3 = st.columns(3)
-with col_p1:
-    if st.button("🎙️ 1. Diktafón\n(Hlasový asistent)", use_container_width=True):
-        st.session_state.input_mode = 'diktafon'
-with col_p2:
-    if st.button("📝 2. Zápis\n(Ad-hoc / Telefón)", use_container_width=True):
-        st.session_state.input_mode = 'zapis'
-with col_p3:
-    if st.button("📥 3. Dopyty\n(Rozpracované / SMS)", use_container_width=True):
-        st.session_state.input_mode = 'dopyty'
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-surovy_text = ""
-
-# Interaktívna časť pod piliermi
-if st.session_state.input_mode == 'diktafon':
-    if st.button("🎙️ Kliknite sem pre spustenie nahrávania a prevod hlasového diktátu", use_container_width=True):
-        surovy_text = "Dnes 7.11.2026 výjazd v DSS Partizánske, trvanie 2 hodiny. Supervízia, cestovné 15 eur."
-        st.success("✅ Hlas bol úspešne zaznamenaný a prevedený na text do formulára.")
-
-elif st.session_state.input_mode == 'zapis':
-    st.info("⚡ **Ad-hoc režim:** Priamy zápis objednávky bez zbytočných medzikrokov.")
-
-elif st.session_state.input_mode == 'dopyty':
-    vybrana_spr = st.selectbox(
-        "📥 Vyberte externú správu / dopyt:",
-        [
-            "-- Vyberte správu --",
-            "WhatsApp (10:15): Dobrý deň, potvrdzujem výjazd v Spojenej škole Partizánske. Hodiny: 3",
-            "SMS (09:30): Potrebujeme akútnu konzultáciu v CDR Partizánske na 12.11."
-        ]
-    )
-    if vybrana_spr != "-- Vyberte správu --":
-        surovy_text = vybrana_spr
-
-st.markdown("---")
-st.markdown("### ✏️ Formulár dopytu & Validátor")
-
-poznamka_input = st.text_area("📝 Poznámka / Prepis úkonu:", value=surovy_text, height=80)
-
-region = st.radio("Región / Cenník / Krajina:", ["🇸🇰 SR (EUR)", "🇨🇿 ČR (CZK)"], horizontal=True)
-is_sr = "SR" in region
-cennik = CENNIK_SR if is_sr else CENNIK_CZ
-zoznam_sluz = zoznam_sluzieb_sr if is_sr else zoznam_sluzieb_cz
-zoznam_partnerov = partneri_sr if is_sr else partneri_cz
-mena = "€" if is_sr else "Kč"
-
-# 1. Riadok: Dátum a Čas
-col_r1_1, col_r1_2 = st.columns(2)
-with col_r1_1:
-    datum_val = st.date_input("1. Dátum výjazdu", value=datetime.now())
-with col_r1_2:
-    cas_val = st.text_input("2. Čas (od-do)", value="08:00 - 10:00")
-
-# 2. Riadok: Organizácia
-col_r2_1, col_r2_2 = st.columns(2)
-with col_r2_1:
-    org_vyber = st.selectbox("3. Názov organizácie (zo zoznamu)", options=["-- Vyberte zo zoznamu --"] + zoznam_partnerov, index=0)
-with col_r2_2:
-    org_ručne = st.text_input("Alebo napíšte organizáciu ručne:", value="DSS Partizánske" if "Partizánske" in poznamka_input else "")
-
-org_val = org_ručne if (not org_vyber or org_vyber == "-- Vyberte zo zoznamu --") else org_vyber
-
-# 3. Riadok: Miesto konania
-col_r3_1, col_r3_2 = st.columns(2)
-with col_r3_1:
-    miesto_vyber = st.selectbox("4. Miesto konania (zo zoznamu)", options=["-- Vyberte zo zoznamu --"] + zoznam_partnerov, index=0)
-with col_r3_2:
-    miesto_ručne = st.text_input("Alebo napíšte miesto ručne:", value=org_val if org_val else "Partizánske")
-
-miesto_val = miesto_ručne if (not miesto_vyber or miesto_vyber == "-- Vyberte zo zoznamu --") else miesto_vyber
-
-miesto_key = miesto_val.strip().lower()
-auto_km = DATABAZA_MIEST.get(miesto_key, {}).get("km", 290 if "partizánske" in miesto_key else 50)
-auto_cas_cesty = DATABAZA_MIEST.get(miesto_key, {}).get("cas_h", 3.5 if "partizánske" in miesto_key else 1.0)
-
-st.markdown("---")
-st.markdown("#### 5. & 6. Služby, Hodiny a Sadzby")
-
-col_s1, col_s2 = st.columns(2)
-
-if 'prev_sel_5a' not in st.session_state: st.session_state.prev_sel_5a = None
-if 'prev_sel_5b' not in st.session_state: st.session_state.prev_sel_5b = None
-if 'prev_region' not in st.session_state: st.session_state.prev_region = None
-if 'h_6a2' not in st.session_state: st.session_state.h_6a2 = "0.0"
-if 'h_6b2' not in st.session_state: st.session_state.h_6b2 = "0.0"
-
-with col_s1:
-    st.markdown("**Služba A**")
-    sluzba_5a = st.selectbox("5A. Výber služby", options=zoznam_sluz, key="sel_5a")
-    cena_z_cennika_5a = cennik.get(sluzba_5a, 0.0)
-    
-    if st.session_state.get('sel_5a') != st.session_state.get('prev_sel_5a') or region != st.session_state.get('prev_region'):
-        st.session_state.h_6a2 = str(cena_z_cennika_5a)
-    
-    h_6a1 = st.text_input("6A.1 Počet hodín", value="2.0" if "2 hodiny" in poznamka_input else ("3.0" if "Hodiny: 3" in poznamka_input else "0.0"), key="h_6a1")
-    h_6a2 = st.text_input(f"6A.2 Cena / 1 hod. ({mena})", key="h_6a2")
-
-with col_s2:
-    st.markdown("**Služba B (Voliteľné)**")
-    sluzba_5b = st.selectbox("5B. Výber ďalšej služby", options=zoznam_sluz, key="sel_5b")
-    cena_z_cennika_5b = cennik.get(sluzba_5b, 0.0)
-    
-    if st.session_state.get('sel_5b') != st.session_state.get('prev_sel_5b') or region != st.session_state.get('prev_region'):
-        st.session_state.h_6b2 = str(cena_z_cennika_5b)
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            fixes_report["status"] = f"CHYBA: {str(e)}"
         
-    h_6b1 = st.text_input("6B.1 Počet hodín", value="0.0", key="h_6b1")
-    h_6b2 = st.text_input(f"6B.2 Cena / 1 hod. ({mena})", key="h_6b2")
+        return fixes_report
 
-st.session_state.prev_sel_5a = st.session_state.get('sel_5a')
-st.session_state.prev_sel_5b = st.session_state.get('sel_5b')
-st.session_state.prev_region = region
+    def get_period_stats(self, start_date_str: str, end_date_str: str) -> dict:
+        stats = {"hodiny": 0.0, "sluzby": 0, "eur": 0.0, "czk": 0.0, "km": 0.0}
+        try:
+            conn = get_connection()
+            df = pd.read_sql("""
+                SELECT hodiny, celkova_suma, mena, km 
+                FROM dopyty 
+                WHERE datum_akcie BETWEEN ? AND ?
+            """, conn, params=(start_date_str, end_date_str))
+            conn.close()
 
-hodiny_5a = parse_float(h_6a1)
-sadzba_5a = parse_float(h_6a2)
+            if not df.empty:
+                stats["hodiny"] = float(df['hodiny'].sum() or 0.0)
+                stats["sluzby"] = int(df.shape[0])
+                stats["km"] = float(df['km'].sum() or 0.0)
+                
+                eur_df = df[df['mena'] == 'EUR']
+                czk_df = df[df['mena'] == 'CZK']
+                stats["eur"] = float(eur_df['celkova_suma'].sum() or 0.0)
+                stats["czk"] = float(czk_df['celkova_suma'].sum() or 0.0)
+        except Exception:
+            pass
+        return stats
 
-hodiny_5b = parse_float(h_6b1)
-sadzba_5b = parse_float(h_6b2)
+    def comprehensive_psychohygiene_audit(self) -> dict:
+        report = {}
+        try:
+            today = datetime.now().date()
+            
+            w_start = today.strftime("%Y-%m-%d")
+            w_end = (today + timedelta(days=7)).strftime("%Y-%m-%d")
+            w_stats = self.get_period_stats(w_start, w_end)
+            report["weekly"] = {**w_stats, "limit": 32.0, "status": "PRETÍŽENIE" if w_stats["hodiny"] > 32.0 else "V NORME"}
 
-vypocitana_suma_sluzieb = (hodiny_5a * sadzba_5a) + (hodiny_5b * sadzba_5b)
-s_7 = st.text_input(f"7. Celková suma za služby ({mena})", value=f"{vypocitana_suma_sluzieb:.2f}")
-suma_sluzieb_val = parse_float(s_7, vypocitana_suma_sluzieb)
+            m_start = today.replace(day=1).strftime("%Y-%m-%d")
+            if today.month == 12:
+                m_end = today.replace(year=today.year+1, month=1, day=1).strftime("%Y-%m-%d")
+            else:
+                m_end = today.replace(month=today.month+1, day=1).strftime("%Y-%m-%d")
+            m_stats = self.get_period_stats(m_start, m_end)
+            report["monthly"] = {**m_stats, "limit": 120.0, "status": "VYSOKÉ NASADENIE" if m_stats["hodiny"] > 100.0 else "VYVÁŽENÉ"}
 
-st.markdown("---")
-st.markdown("#### 8. Cestovné náhrady, čas na ceste a ubytovanie")
+            q_num = (today.month - 1) // 3 + 1
+            q_start_month = 3 * (q_num - 1) + 1
+            q_start = today.replace(month=q_start_month, day=1).strftime("%Y-%m-%d")
+            q_stats = self.get_period_stats(q_start, today.strftime("%Y-%m-%d"))
+            report["quarterly"] = {**q_stats, "q": f"Q{q_num} {today.year}", "evaluácia": "Priebežná supervízna rovnováha a diverzifikácia partnerov."}
 
-col_c1, col_c2, col_c3 = st.columns(3)
-with col_c1:
-    vztah_km = st.text_input("Kilometre (tam a späť):", value=str(auto_km))
-    sadzba_km_in = st.text_input(f"Sadzba / 1 km ({mena}):", value="0.50" if is_sr else "6.0")
-with col_c2:
-    cas_cesta = st.text_input("Čas na ceste (hod.):", value=str(auto_cas_cesty))
-    sadzba_cas_cesty = st.text_input(f"Sadzba za čas cesty / hod ({mena}):", value="10.0" if is_sr else "250.0")
-with col_c3:
-    ubytovanie_in = st.text_input(f"Ubytovanie ({mena}):", value="0.0")
+            h_start = (today - timedelta(days=180)).strftime("%Y-%m-%d")
+            h_stats = self.get_period_stats(h_start, today.strftime("%Y-%m-%d"))
+            report["half_year"] = {**h_stats, "evaluácia": "Povinný polročný reštart a audit. Odporúča sa 14-dňový útlm a čerpanie Home Office."}
 
-km_val = parse_float(vztah_km)
-sazba_km_val = parse_float(sadzba_km_in)
-vypocitane_km_cestovne = km_val * sazba_km_val
+            y_start = f"{today.year}-01-01"
+            y_end = f"{today.year}-12-31"
+            y_stats = self.get_period_stats(y_start, y_end)
+            report["yearly"] = {**y_stats, "rok": today.year, "strategia": "Konsolidácia pozície lídra v SR a ČR."}
 
-cas_cesta_val = parse_float(cas_cesta)
-sazba_cas_val = parse_float(sadzba_cas_cesty)
-vypocitany_cas_cesty_suma = cas_cesta_val * sazba_cas_val
+        except Exception as e:
+            report["error"] = str(e)
+        return report
 
-vypocitane_stravne = vypocitaj_stravne(cas_cesta_val, region)
-ubyt_val = parse_float(ubytovanie_in)
+    def scan_anomalies(self) -> list:
+        anomalies = []
+        try:
+            conn = get_connection()
+            missing = pd.read_sql("""
+                SELECT d.id, d.miesto, d.datum_akcie, d.celkova_suma, d.mena 
+                FROM dopyty d
+                LEFT JOIN vnutorne_faktury f ON d.id = f.dopyt_id
+                WHERE (d.stav LIKE '%SCHVÁLENÉ%' OR d.stav LIKE '%SCHVALENE%') AND f.id IS NULL
+            """, conn)
+            for _, r in missing.iterrows():
+                anomalies.append({
+                    "typ": "CHÝBAJÚCA FAKTURÁCIA",
+                    "popis": f"Výjazd #{r['id']} ({r['miesto'] or 'Klient'}) zo dňa {r['datum_akcie']} je schválený, ale chýba fakturačný podklad!"
+                })
+            conn.close()
+        except Exception:
+            pass
+        return anomalies
 
-default_cestovne_celkom = vypocitane_km_cestovne + vypocitany_cas_cesty_suma + vypocitane_stravne + ubyt_val
-d_8 = st.text_input(f"8. Celkové Cestovné & Výdavky ({mena})", value=f"{default_cestovne_celkom:.2f}")
-cestovne_val = parse_float(d_8, default_cestovne_celkom)
+    def predict_needs(self) -> list:
+        predictions = []
+        try:
+            conn = get_connection()
+            df_hist = pd.read_sql("""
+                SELECT miesto, MAX(datum_akcie) as pos, AVG(hodiny) as h, AVG(celkova_suma) as s, mena
+                FROM dopyty WHERE miesto IS NOT NULL AND miesto != '' GROUP BY miesto
+            """, conn)
+            today = datetime.now().date()
+            for _, row in df_hist.iterrows():
+                if row['pos']:
+                    try:
+                        d_diff = (today - datetime.strptime(str(row['pos'])[:10], "%Y-%m-%d").date()).days
+                        if d_diff >= 25:
+                            predictions.append({
+                                "partner": row['miesto'],
+                                "dni": d_diff,
+                                "hodiny": round(row['h'] or 6.0, 1),
+                                "vynos": round(row['s'] or 300.0, 2),
+                                "mena": row['mena'] or "EUR"
+                            })
+                    except Exception:
+                        pass
+            conn.close()
+        except Exception:
+            pass
+        return predictions
 
-st.markdown("---")
-vypocitana_celkova = suma_sluzieb_val + cestovne_val
-c_9 = st.text_input(f"9. Celková suma na úhradu ({mena})", value=f"{vypocitana_celkova:.2f}")
-celkova_suma_val = parse_float(c_9, vypocitana_suma_sluzieb + cestovne_val)
 
-st.markdown("---")
-st.markdown("🤖 **Stav Inteligentného Validátora:**")
-je_kompletne = bool(org_val and org_val != "-- Vyberte zo zoznamu --" and (hodiny_5a > 0 or hodiny_5b > 0))
+# Inicializácia neurosystému
+neuro = EtienNeurosytemConductor()
+neuro_fixes = neuro.self_heal_and_optimize()
+psych_report = neuro.comprehensive_psychohygiene_audit()
+anomalies = neuro.scan_anomalies()
+predictions = neuro.predict_needs()
+watchdog = neuro.validator.audit_systemovej_plynulosti()
 
-if je_kompletne:
-    st.success("✅ Validácia úspešná: Dáta sedia a výjazd je kompletný.")
+# ==========================================
+# NEURONÁLNY BOČNÝ PANEL
+# ==========================================
+st.sidebar.markdown("## 🧠 ETIENs NEUROSÝSTÉM")
+st.sidebar.caption("Samoučiaci & Samoopravovací Dirigent")
+st.sidebar.markdown("---")
+
+# 🏠 TLAČIDLO DOMOV (Rýchly návrat na Veliteľský mostík)
+if st.sidebar.button("🏠 Domov (Veliteľský mostík)", use_container_width=True, type="primary"):
+    st.rerun()
+
+st.sidebar.markdown("---")
+
+if neuro_fixes["invoices_fixed"] > 0:
+    st.sidebar.success(f"🧬 Neuro-Sync: Opravených {neuro_fixes['invoices_fixed']} relácií.")
+elif watchdog["system_healthy"] and not anomalies:
+    st.sidebar.success("🟢 Neuro-Stav: 100% Homeostáza")
 else:
-    st.warning("⚠️ Validácia: Záznam obsahuje neúplné údaje (chýba organizácia alebo hodiny). Výjazd bude presmerovaný do Rozpracovaných Dopytov.")
+    st.sidebar.warning(f"🟠 Anomálie: {len(anomalies)} na vyriešenie")
 
-col_btn1, col_btn2 = st.columns(2)
-with col_btn1:
-    submit_kalendar = st.button("📅 Schváliť a poslať do KALENDÁRA", use_container_width=True)
-with col_btn2:
-    submit_cakaren = st.button("📥 Uložiť do ROZPRACOVANÝCH DOPYTOV", use_container_width=True)
+w_status = psych_report.get("weekly", {})
+if w_status.get("status") == "PRETÍŽENIE":
+    st.sidebar.error(f"🚨 Psychohygiena (Týždeň): {w_status.get('hodiny')}h / 32h!")
+else:
+    st.sidebar.info(f"🧘 Týždenná záťaž: {w_status.get('hodiny', 0)}h / 32h")
 
-text_sluzieb = sluzba_5a
-if sluzba_5b != "-- Žiadna / Nevybraté --":
-    text_sluzieb += f" + {sluzba_5b}"
+st.sidebar.markdown("---")
 
-if submit_kalendar:
-    novy_zaznam = {
-        "datum": str(datum_val), "region": region, "org": org_val, "miesto": miesto_val,
-        "sluzby": text_sluzieb, "sluzby_suma": suma_sluzieb_val, 
-        "km": km_val, "cestovne": cestovne_val, "celkom": celkova_suma_val, "status": "SCHVÁLENÉ"
-    }
-    st.session_state.kalendar.append(novy_zaznam)
-    st.success("Záznam bol schválený a odoslaný do kalendára!")
+menu = st.sidebar.radio(
+    "Neuronálna navigácia:",
+    [
+        "⚡ Veliteľský mostík (Dashboard)",
+        "🧬 Štatistický & Psychohygienický Radar",
+        "📥 Sondár (Inteligentný záchyt)",
+        "🚗 Dispečer (Trasy & SR/ČR)",
+        "💶 Financmajster (Ekonomika)"
+    ]
+)
 
-if submit_cakaren:
-    novy_zaznam = {
-        "datum": str(datum_val), "region": region, "org": org_val, "miesto": miesto_val,
-        "sluzby": text_sluzieb, "sluzby_suma": suma_sluzieb_val, 
-        "km": km_val, "cestovne": cestovne_val, "celkom": celkova_suma_val, "status": "ROZPRACOVANÉ"
-    }
-    st.session_state.cakaren.append(novy_zaznam)
-    st.info("Záznam bol uložený do 3. piliera (Rozpracované dopyty).")
+st.sidebar.markdown("---")
+if st.sidebar.button("⚡ Vynútiť neuro-samooopravu systému", use_container_width=True):
+    res = neuro.self_heal_and_optimize()
+    st.sidebar.success(f"Autonómny repozitár prečistený. Opravené: {res['invoices_fixed']}")
+    st.rerun()
 
-st.markdown("---")
-st.markdown("### 🗂️ Prehľad stavov záznamov")
-tab1, tab2 = st.tabs(["📥 Rozpracované Dopyty (Čakáreň)", "📅 Uložené v Kalendári"])
-with tab1:
-    if st.session_state.cakaren:
-        st.dataframe(pd.DataFrame(st.session_state.cakaren))
-    else:
-        st.write("Žiadne rozpracované dopyty.")
-with tab2:
-    if st.session_state.kalendar:
-        st.dataframe(pd.DataFrame(st.session_state.kalendar))
-    else:
-        st.write("Kalendár je prázdny.")
+if not MODULY_OK:
+    st.error(f"Kritická chyba modulov: {IMPORT_ERROR_MSG}")
+    st.stop()
+
+# ==========================================
+# HLAVNÝ OBSAH PODĽA VÝBERU
+# ==========================================
+if "Veliteľský mostík" in menu:
+    st.markdown("""
+        <div class="neuro-banner">
+            <h1 style="color: #ffffff !important; margin: 0; font-size: 2.3rem;">🧠 ETIENs Neurosystém – Veliteľský Mostík</h1>
+            <p style="color: #93c5fd !important; margin-top: 0.5rem; font-size: 1.1rem;">
+                Autonómny, samoučiaci a samoopravovací mozog praxe. Integrovaná legislatíva 2026, predikcie a viacúrovňové štatistiky (Piatok/Pondelok Home Office).
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # Rýchly príkaz pre neuro-dirigenta
+    with st.container():
+        st.markdown("### 💬 Neuro-Command (Priamy hlas / text príkaz)")
+        with st.form("neuro_cmd"):
+            c1, c2 = st.columns([4, 1])
+            with c1:
+                cmd_txt = st.text_input("Zadaj požiadavku v prirodzenom jazyku (napr. Supervízia Trenčín 6 hodín, 40km):", placeholder="Napr. Krízová intervencia Praha 5 hodín...")
+            with c2:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                submitted_nc = st.form_submit_button("Spracovať Dirigentom", use_container_width=True)
+            
+            if submitted_nc and cmd_txt:
+                try:
+                    kraj = "ČR" if any(x in cmd_txt.lower() for x in ["praha", "brno", "ostrava", "kč"]) else "SR"
+                    mena = "CZK" if kraj == "ČR" else "EUR"
+                    h_val = 6.0
+                    for word in cmd_txt.split():
+                        if word.replace('.', '', 1).isdigit():
+                            h_val = float(word)
+                            break
+                    
+                    nid = vloz_dopyt({
+                        "datum_vytvorenia": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "sluzby": "Odborná supervízia / Intervencia",
+                        "hodiny": h_val,
+                        "miesto": cmd_txt,
+                        "krajina": kraj,
+                        "datum_akcie": datetime.now().strftime("%Y-%m-%d"),
+                        "stav": "VYJEDNÁVANIE",
+                        "mena": mena,
+                        "celkova_suma": h_val * (50.0 if kraj == "SR" else 1250.0),
+                        "poznamka": f"Vytvorené cez Neuro-Command: {cmd_txt}"
+                    })
+                    st.success(f"🧬 Neurosystém úspešne spracoval a eviduje dopyt pod ID #{nid}!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Chyba neuro-parsovania: {e}")
+
+    st.markdown("---")
+
+    try:
+        conn = get_connection()
+        cnt_d = pd.read_sql("SELECT COUNT(*) as c FROM dopyty", conn).iloc[0]['c']
+        cnt_f = pd.read_sql("SELECT COUNT(*) as c FROM vnutorne_faktury", conn).iloc[0]['c']
+        s_eur = pd.read_sql("SELECT SUM(suma_celkom) as s FROM vnutorne_faktury WHERE mena='EUR'", conn).iloc[0]['s'] or 0.0
+        s_czk = pd.read_sql("SELECT SUM(suma_celkom) as s FROM vnutorne_faktury WHERE mena='CZK'", conn).iloc[0]['s'] or 0.0
+        conn.close()
+    except Exception:
+        cnt_d = cnt_f = 0
+        s_eur = s_czk = 0.0
+
+    mc1, mc2, mc3, mc4 = st.columns(4)
+    mc1.metric("Aktívne spisy", cnt_d)
+    mc2.metric("Účtovné protokoly", cnt_f)
+    mc3.metric("Obrat SR", f"{s_eur:,.2f} €")
+    mc4.metric("Obrat ČR", f"{s_czk:,.2f} Kč")
+
+    st.markdown("---")
+
+    col_l, col_r = st.columns(2)
+
+    with col_l:
+        st.subheader("🚨 Akčný radar & Samooprava")
+        if not anomalies:
+            st.success("✅ Neurosystém neeviduje žiadne anomálie. Všetky výjazdy sú zosynchronizované.")
+        else:
+            for item in anomalies:
+                st.markdown(f"""
+                    <div class="alert-card">
+                        <strong>[{item['typ']}]</strong><br/>
+                        {item['popis']}
+                    </div>
+                """, unsafe_allow_html=True)
+            if st.button("🛠️ Spustiť autonómnu opravu dier", type="primary", use_container_width=True):
+                r_fix = neuro.self_heal_and_optimize()
+                st.success(f"Neuro-sync úspešný! Opravených relácií: {r_fix['invoices_fixed']}")
+                st.rerun()
+
+    with col_r:
+        st.subheader("🔮 Prediktívny radar (Učiaca sa pamäť)")
+        if not predictions:
+            st.info("Neurosystém priebežne analyzuje cykly partnerov pre budúce výjazdy.")
+        else:
+            for p in predictions:
+                st.markdown(f"""
+                    <div class="prediction-card">
+                        <strong>🏢 {p['partner']}</strong><br/>
+                        Posledný kontakt pred: <b>{p['dni']} dňami</b><br/>
+                        Odhad rozvrhu: <b>{p['hodiny']} hod.</b> | Predikovaný výnos: <b>{p['vynos']} {p['mena']}</b>
+                    </div>
+                """, unsafe_allow_html=True)
+
+elif "Štatistický & Psychohygienický Radar" in menu:
+    st.markdown("""
+        <div class="neuro-banner">
+            <h1 style="color: #ffffff !important; margin: 0; font-size: 2.1rem;">🧬 Štatistický & Psychohygienický Radar</h1>
+            <p style="color: #93c5fd !important; margin-top: 0.4rem; font-size: 1.05rem;">
+                Kompletný prehľad: Odpracované hodiny, počet služieb, výnosy (SR/ČR) a najazdené kilometre v cykloch (Týždenne, Mesačne, Štvrťročne, Polročne, Ročne).
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    w = psych_report.get("weekly", {})
+    m = psych_report.get("monthly", {})
+    q = psych_report.get("quarterly", {})
+    h = psych_report.get("half_year", {})
+    y = psych_report.get("yearly", {})
+
+    col_w1, col_w2 = st.columns(2)
+    
+    with col_w1:
+        # TÝŽDENNÝ PREHĽAD
+        st.markdown(f"""
+            <div class="neuro-card">
+                <h3>📅 Týždenný prehľad (Najbližších 7 dní)</h3>
+                <p><b>Odpracované hodiny:</b> {w.get('hodiny', 0):,.1f} h (Limit: {w.get('limit', 32)}h)</p>
+                <p><b>Stav vyťaženia:</b> <span style="color: {'#ef4444' if w.get('status')=='PRETÍŽENIE' else '#22c55e'};"><b>{w.get('status', 'OK')}</b></span></p>
+                <hr style="border-color: rgba(255,255,255,0.1);">
+                <p><b>Počet služieb / akcií:</b> {w.get('sluzby', 0)}</p>
+                <p><b>Výnosy SR:</b> {w.get('eur', 0):,.2f} € | <b>Výnosy ČR:</b> {w.get('czk', 0):,.2f} Kč</p>
+                <p><b>Najazdené kilometre:</b> {w.get('km', 0):,.1f} km</p>
+                <p style="font-size: 0.82rem; color: #94a3b8; margin-top: 0.4rem;"><i>Piatok a Pondelok vyhradené pre Home Office.</i></p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # MESAČNÝ PREHĽAD
+        st.markdown(f"""
+            <div class="neuro-card">
+                <h3>📊 Mesačný prehľad (Aktuálny mesiac)</h3>
+                <p><b>Odpracované hodiny:</b> {m.get('hodiny', 0):,.1f} h (Limit: {m.get('limit', 120)}h)</p>
+                <p><b>Biorytmus:</b> {m.get('status', 'Vyvážené')}</p>
+                <hr style="border-color: rgba(255,255,255,0.1);">
+                <p><b>Počet služieb / akcií:</b> {m.get('sluzby', 0)}</p>
+                <p><b>Výnosy SR:</b> {m.get('eur', 0):,.2f} € | <b>Výnosy ČR:</b> {m.get('czk', 0):,.2f} Kč</p>
+                <p><b>Najazdené kilometre:</b> {m.get('km', 0):,.1f} km</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col_w2:
+        # ŠTVRŤROČNÝ PREHĽAD
+        st.markdown(f"""
+            <div class="neuro-card">
+                <h3>📈 Štvrťročný prehľad ({q.get('q', 'Q')})</h3>
+                <p>{q.get('evaluácia', '')}</p>
+                <hr style="border-color: rgba(255,255,255,0.1);">
+                <p><b>Celkom hodín:</b> {q.get('hodiny', 0):,.1f} h | <b>Akcií:</b> {q.get('sluzby', 0)}</p>
+                <p><b>Výnosy SR:</b> {q.get('eur', 0):,.2f} € | <b>Výnosy ČR:</b> {q.get('czk', 0):,.2f} Kč</p>
+                <p><b>Najazdené kilometre:</b> {q.get('km', 0):,.1f} km</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # POLROČNÝ PREHĽAD
+        st.markdown(f"""
+            <div class="neuro-card">
+                <h3>⏳ Polročný audit (Posledných 6 mesiacov)</h3>
+                <p>{h.get('evaluácia', '')}</p>
+                <hr style="border-color: rgba(255,255,255,0.1);">
+                <p><b>Celkom hodín:</b> {h.get('hodiny', 0):,.1f} h | <b>Akcií:</b> {h.get('sluzby', 0)}</p>
+                <p><b>Výnosy SR:</b> {h.get('eur', 0):,.2f} € | <b>Výnosy ČR:</b> {h.get('czk', 0):,.2f} Kč</p>
+                <p><b>Najazdené kilometre:</b> {h.get('km', 0):,.1f} km</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # ROČNÝ PREHĽAD (Široký banner dole)
+    st.markdown(f"""
+        <div class="neuro-card" style="background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%); border: 1px solid #38bdf8;">
+            <h3>🎯 Ročná makro-syntéza ({y.get('rok', 2026)})</h3>
+            <p><b>Strategický smer:</b> {y.get('strategia', '')}</p>
+            <hr style="border-color: rgba(255,255,255,0.1);">
+            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                <div><b>Celkovo hodín:</b> {y.get('hodiny', 0):,.1f} h</div>
+                <div><b>Celkovo služieb:</b> {y.get('sluzby', 0)}</div>
+                <div><b>Obrat SR:</b> {y.get('eur', 0):,.2f} €</div>
+                <div><b>Obrat ČR:</b> {y.get('czk', 0):,.2f} Kč</div>
+                <div><b>Najazdené km:</b> {y.get('km', 0):,.1f} km</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+elif "Sondár" in menu:
+    dopyty_modul.render()
+elif "Dispečer" in menu:
+    vyjazd_modul.render()
+elif "Financmajster" in menu:
+    fakturacia_modul.render()
